@@ -2,11 +2,13 @@ import React from 'react';
 
 const API_ENDPOINT = 'https://hn.algolia.com/api/v1/search?query=';
 
+// Reducer functions receive state, and an action. 
+// They return a new state
 const storiesReducer = (state, action) => {
   switch (action.type) {
     case 'STORIES_FETCH_INIT':
       return {
-        ...state,
+        ...state, // Using the spread operator for key / value pairs
         isLoading: true,
         isError: false
       };
@@ -35,12 +37,18 @@ const storiesReducer = (state, action) => {
   }
 };
 
+// Custom hook
+// Returns the value, and a function to update it
+// Internally it stores the value in local storage
 const useSemiPersistentState = (key, initialState) => {
 
+  // store the value in state
   const [value, setValue] = React.useState(
+    // the initial value is either loaded form storage, or supplied
     localStorage.getItem(key) || initialState
   );
 
+  // update the local storage if either the key or value changes.
   React.useEffect(() => {
     localStorage.setItem(key, value);
   }, [value, key]);
@@ -50,42 +58,63 @@ const useSemiPersistentState = (key, initialState) => {
 
 const App = () => {  
 
+  // utilising the custom hook
   const [searchTerm, setSearchTerm] = useSemiPersistentState('search', 'React');
 
+  // storing the url in state - default value supplied above
   const [url, setUrl] = React.useState(
     `${API_ENDPOINT}${searchTerm}`
   );
 
+  // when input is detected, update the search term
   const handleSearchInput = (event) => {
     setSearchTerm(event.target.value);
   };
 
+  // when submit is pressed, update the url with the current search term
   const handleSearchSubmit = () => {
     setUrl(`${API_ENDPOINT}${searchTerm}`);
   }
 
+  // use a reducer, providing the function, and initial state as args.
+  // stories is the current state, dispatch stories is the state updater function
   const [stories, dispatchStories] = React.useReducer(storiesReducer, { data: [], isLoading: false, isError: false });
 
+  // useCallback creates a memoized function every time the dependency array changes.
+  // in this case, when the url changes, our anonymous function below will update 
+  // in order to fetch from the new url.
   const handleFetchStories = React.useCallback(() => {
+
+    // use the state updater function from our reducer to update the state, providing a
+    // type, and optional payload (omitted)
     dispatchStories({type: 'STORIES_FETCH_INIT'});
 
+    // fetch the data from the url
     fetch(url)
-      .then((response) => response.json())
+      .then((response) => response.json()) //convert the response to json
       .then((result) => {
+        // update the state again, this time supplying a payload
         dispatchStories({
           type: 'STORIES_FETCH_SUCCESS',
           payload: result.hits,
         });
     })
     .catch(() => 
-      dispatchStories({type: 'STORIES_FETCH_FAILURE'})
+      dispatchStories({type: 'STORIES_FETCH_FAILURE'}) // update the state if we encounter issues
     );
   }, [url]);
 
+  // execute the function when the function changes
+  // each time the url changes, the function changes
+  // if it's not memoized, then there would be a new function defined
+  // each time the app is rendered, and that function would then be executed by 
+  // the side-effect below. Part of the function execution updates the state,
+  // which will cause a re-render. This would therefore create an infinite loop.
   React.useEffect(() => {
     handleFetchStories();
   }, [handleFetchStories]);
 
+  // simple handler to update the state using the state updater function
   const handleRemoveStory = (item) => {
     dispatchStories({
       type: 'REMOVE_STORY',
