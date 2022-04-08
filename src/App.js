@@ -1,4 +1,5 @@
 import React from 'react';
+import axios from 'axios';
 
 const API_ENDPOINT = 'https://hn.algolia.com/api/v1/search?query=';
 
@@ -72,8 +73,10 @@ const App = () => {
   };
 
   // when submit is pressed, update the url with the current search term
-  const handleSearchSubmit = () => {
+  const handleSearchSubmit = (event) => {
     setUrl(`${API_ENDPOINT}${searchTerm}`);
+
+    event.preventDefault();
   }
 
   // use a reducer, providing the function, and initial state as args.
@@ -83,25 +86,24 @@ const App = () => {
   // useCallback creates a memoized function every time the dependency array changes.
   // in this case, when the url changes, our anonymous function below will update 
   // in order to fetch from the new url.
-  const handleFetchStories = React.useCallback(() => {
+  const handleFetchStories = React.useCallback(async () => {
 
     // use the state updater function from our reducer to update the state, providing a
     // type, and optional payload (omitted)
     dispatchStories({type: 'STORIES_FETCH_INIT'});
 
     // fetch the data from the url
-    fetch(url)
-      .then((response) => response.json()) //convert the response to json
-      .then((result) => {
-        // update the state again, this time supplying a payload
-        dispatchStories({
-          type: 'STORIES_FETCH_SUCCESS',
-          payload: result.hits,
-        });
-    })
-    .catch(() => 
+    try {
+      const result = await axios.get(url);
+
+      // update the state again, this time supplying a payload
+      dispatchStories({
+        type: 'STORIES_FETCH_SUCCESS',
+        payload: result.data.hits,
+      });
+    } catch {
       dispatchStories({type: 'STORIES_FETCH_FAILURE'}) // update the state if we encounter issues
-    );
+    }
   }, [url]);
 
   // execute the function when the function changes
@@ -126,22 +128,11 @@ const App = () => {
     <div>
       <h1>My Hacker Stories</h1>
 
-      <InputWithLabel 
-        id="search"
-        value={searchTerm}
-        isFocused
-        onInputChange={handleSearchInput} 
-      >
-        <strong>Search:</strong>
-      </InputWithLabel>
-
-      <button
-        type="button"
-        disabled={!searchTerm}
-        onClick={handleSearchSubmit}
-      >
-        Submit
-      </button>
+      <SearchForm
+        searchTerm={searchTerm}
+        onSearchInput={handleSearchInput}
+        onSearchSubmit={handleSearchSubmit}
+      />
 
       <hr/>
       {stories.isError && <p>Something went wrong ...</p>}
@@ -153,6 +144,26 @@ const App = () => {
     </div>
   )
 }
+
+const SearchForm = ({
+  searchTerm,
+  onSearchInput,
+  onSearchSubmit,
+}) => (
+  <form onSubmit={onSearchSubmit}>
+    <InputWithLabel 
+      id="search"
+      value={searchTerm}
+      isFocused
+      onInputChange={onSearchInput} 
+    >
+      <strong>Search:</strong>
+    </InputWithLabel>
+    <button type="submit" disabled={!searchTerm}>
+      Submit
+    </button>
+  </form>   
+);
 
 const InputWithLabel = ({
   id, 
